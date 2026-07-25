@@ -1,0 +1,16 @@
+meta:
+  environment: jvm
+  toolchain:
+    name: maven
+    version: "21"
+build:
+  image: null
+  args: clean package
+  artifacts:
+    target/*.jar: /
+run:
+  image: null
+  args: null
+  jarName: bridge-1.0-SNAPSHOT.jar
+  persistenceMount: /data
+  containerPort: "8080"
