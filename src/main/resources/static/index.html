@@ -185,6 +185,87 @@
                 <button @click="savePassport" class="btn-create">💾 Сохранить паспорт</button>
             </div>
 
+            <!-- СВОДНАЯ ТАБЛИЦА ПЛИТЫ -->
+            <div v-if="isPassportFilled" class="form-container" style="margin-top: 2rem;">
+                <h3 style="margin-bottom: 0.5rem; color: #2c3e50; border-bottom: 2px solid #e0e0e0; padding-bottom: 0.5rem;">
+                    📊 Расчёт по грузоподъёмности плитного пролётного строения
+                </h3>
+                <p style="color: #666; font-size: 0.95rem; margin-bottom: 1rem;">
+                    Сводная таблица результатов расчёта плиты балластного корыта на прочность,
+                    поперечную силу и выносливость.
+                </p>
+
+                <!-- Блок предупреждения о недостающих разделах -->
+                <div v-if="!slabSummaryReadiness.ready" style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 1rem; margin-bottom: 1rem; border-radius: 4px;">
+                    <p style="margin: 0; color: #856404; font-weight: 600;">⚠️ Для построения сводной таблицы сначала выполните следующие расчёты:</p>
+                    <ul style="margin: 0.5rem 0 0 1.5rem; color: #856404;">
+                        <li v-for="item in slabSummaryReadiness.missing" :key="item">{{ item }}</li>
+                    </ul>
+                </div>
+
+                <div style="margin-bottom: 0.8rem;">
+                    <div v-if="slabSummaryReadiness.ready" style="font-size: 0.85rem; color: #27ae60;">
+                        ✅ Все зависимости рассчитаны
+                    </div>
+                </div>
+
+                <button @click="calculateSlabSummary" :disabled="isLoading || !slabSummaryReadiness.ready" class="btn-create">
+                    {{ isLoading ? 'Расчёт...' : 'Рассчитать сводную таблицу' }}
+                </button>
+
+                <!-- Таблица результатов -->
+                <div v-if="slabSummaryResult" class="result-box" style="margin-top: 1.5rem;">
+                    <h3 style="margin-bottom: 1rem; color: #2c3e50;">Результаты расчёта</h3>
+
+                    <div style="overflow-x: auto;">
+                        <table class="schemes-table slab-summary-table">
+                            <thead>
+                            <tr>
+                                <th>Вид расчета</th>
+                                <th>λ</th>
+                                <th>α</th>
+                                <th>k, кН/м<br><small>допускаемая<br>временная нагрузка</small></th>
+                                <th>k<sub>c</sub>, кН/м<br><small>эталонная нагрузка</small></th>
+                                <th>K класс<br><small>пролетного строения</small></th>
+                                <th>Класс нагрузки по<br>II категории</th>
+                                <th>Класс нагрузки вагона<br>с осевой нагрузкой 27 т/ось</th>
+                                <th>Класс нагрузки вагона<br>с осевой нагрузкой 25 т/ось</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="(row, index) in slabSummaryResult.rows" :key="index">
+                                <td style="text-align: left; font-weight: 500;">{{ row.calculationType }}</td>
+                                <td style="text-align: center;">{{ formatNum(row.lambda, 2) }}</td>
+                                <td style="text-align: center;">{{ formatNum(row.alpha, 2) }}</td>
+                                <td style="text-align: center;">{{ formatNum(row.k, 2) }}</td>
+                                <td style="text-align: center;">{{ formatNum(row.ks, 2) }}</td>
+                                <td style="text-align: center; font-weight: bold; color: #2c3e50;">{{ formatNum(row.kClass, 2) }}</td>
+                                <td style="text-align: center;">{{ formatNum(row.loadClassII, 2) }}</td>
+                                <td style="text-align: center;">{{ formatNum(row.loadClass27, 2) }}</td>
+                                <td style="text-align: center;">{{ formatNum(row.loadClass25, 2) }}</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Итоговый вывод -->
+                    <div class="result-grid" style="margin-top: 1.5rem;">
+                        <div class="result-item" style="background: #fff3cd;">
+                            <span class="label">Минимальный класс пролетного строения (плиты):</span>
+                            <span class="value" style="font-size: 1.5rem; color: #856404;">{{ formatNum(slabSummaryResult.minClass, 2) }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Подробный отчёт -->
+                    <button @click="showSlabSummaryReport = !showSlabSummaryReport" class="btn-toggle-report" style="margin-top: 1.5rem;">
+                        {{ showSlabSummaryReport ? '▲ Скрыть подробный расчёт' : '▼ Показать подробный расчёт' }}
+                    </button>
+                    <div v-if="showSlabSummaryReport && slabSummaryResult.detailedReport" class="detailed-report" v-html="parseReport(slabSummaryResult.detailedReport)"></div>
+                </div>
+
+                <div v-if="slabSummaryError" class="error" style="margin-top: 1rem;">{{ slabSummaryError }}</div>
+            </div>
+
             <h2 class="section-title" style="margin-top: 2rem;">Разделы расчёта</h2>
             <div class="grid">
                 <div class="card" @click="page='materials'">
@@ -1039,7 +1120,7 @@
         <!-- РАЗДЕЛ 8: РАСЧЕТ ПО НОРМАМ ПРОЕКТИРОВАНИЯ                   -->
         <!-- ============================================================ -->
         <section v-if="page === 'beta'" class="section">
-            <h2 class="section-title">📐 Раздел 8: Расчет по нормам проектирования</h2>
+            <h2 class="section-title">Раздел 8: Расчет по нормам проектирования</h2>
             <p class="description">Определение грузоподъемности на основе сопоставления расчетных норм (формулы 8.1, 8.2, 8.4).</p>
 
             <div v-if="!isPassportFilled" class="warning">⚠️ Сначала заполните и сохраните паспорт объекта.</div>
@@ -1147,7 +1228,7 @@
         <!-- РАЗДЕЛ 9: НАПРЯГАЕМАЯ АРМАТУРА                               -->
         <!-- ============================================================ -->
         <section v-if="page==='prestressedBeam'" class="section">
-            <h2 class="section-title">🔗 Раздел 9: Балки с напрягаемой арматурой</h2>
+            <h2 class="section-title">Раздел 9: Балки с напрягаемой арматурой</h2>
             <p class="description">
                 Расчёт грузоподъёмности железобетонных балок с преднапряжённой арматурой по моменту, поперечной силе и выносливости.
             </p>

@@ -3,8 +3,8 @@ package org.example.controller;
 import jakarta.validation.Valid;
 import org.example.calculator.paragraph_5.MaterialCalculator;
 import org.example.context.BridgeContext;
-import org.example.dto.MaterialRequest;
-import org.example.dto.MaterialResponse;
+import org.example.dto.materials.MaterialRequest;
+import org.example.dto.materials.MaterialResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

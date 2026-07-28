@@ -108,8 +108,20 @@ public class LoadsCalculator {
         }
     }
 
-    public static void printDynamicCoeffReport(BridgeContext ctx, double lambda, String elementName) {
-        printDynamicCoeffReport(ctx, lambda, elementName, false);
+    /**
+     * Получить длину загружения lambda для расчета динамического коэффициента
+     * @param ctx контекст моста
+     * @param forSlab true - для плиты, false - для главной балки
+     * @return длина загружения lambda
+     */
+    public static double getLambda(BridgeContext ctx, boolean forSlab) {
+        if (forSlab) {
+            // Для плиты балластного корыта lambda = lp (расстояние между внутренними гранями ребер)
+            return ctx.lp;
+        } else {
+            // Для главной балки lambda = l (расчетный пролет)
+            return ctx.spanLength;
+        }
     }
 
     public static void printDynamicCoeffReport(BridgeContext ctx, double lambda, String elementName, boolean useMaxCoefficient) {

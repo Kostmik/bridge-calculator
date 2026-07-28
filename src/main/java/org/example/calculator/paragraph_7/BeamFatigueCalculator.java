@@ -54,7 +54,6 @@ public class BeamFatigueCalculator {
         } else {
             System.out.printf("   Нейтральная ось проходит в ребре (x' > hf = %.3f м)%n", ctx.hf);
 
-            // ИСПРАВЛЕНО: Правильное квадратное уравнение для таврового сечения
             // Условие равновесия: b·x'²/2 + (bf-b)·hf·(x'-hf/2) = n'·As·(h0-x') + n'·As'·(x'-as')
             // После преобразований: b·x'² + 2·[(bf-b)·hf + n'·As - n'·As']·x' - (bf-b)·hf² - 2·n'·As·h0 + 2·n'·As'·as' = 0
 

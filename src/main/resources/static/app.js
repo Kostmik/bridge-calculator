@@ -22,7 +22,7 @@ const app = createApp({
       { key: 'curved', title: 'Пролёт на кривой' },
       { key: 'defect', title: 'Дефекты' },
       { key: 'carbon', title: 'Усиление' },
-      { key: 'strengthening', title: 'Усиление' },
+      { key: 'strengthening', title: 'Рекомендации' },
       { key: 'inspection', title: 'Обследование' }
     ];
 
@@ -103,7 +103,8 @@ const app = createApp({
         'loadsShareResult', 'slabStrengthResult', 'slabShearResult', 'slabFatigueResult',
         'beamMomentResult', 'beamShearResult', 'beamFatigueResult', 'betaResult',
         'boardResult', 'curvedResult', 'defectResult', 'carbonResult',
-        'inspection153Result', 'inspection154Result', 'inspection155Result'
+        'inspection153Result', 'inspection154Result', 'inspection155Result',
+        'slabSummaryResult'
       ];
       keysToClear.forEach(key => localStorage.removeItem(key));
 
@@ -127,6 +128,7 @@ const app = createApp({
       inspection153Result.value = null;
       inspection154Result.value = null;
       inspection155Result.value = null;
+      slabSummaryResult.value = null;
 
       showPassportForm.value = false;
       alert('✅ Паспорт обновлён!\n\nВнимание: предыдущие результаты расчётов автоматически сброшены.');
@@ -357,6 +359,23 @@ const app = createApp({
     const slabFatigueResult = ref(null);
     const showSlabFatigueReport = ref(false);
 
+    // Сводная таблица грузоподъёмности плиты
+    const slabSummaryResult = ref(null);
+    const showSlabSummaryReport = ref(false);
+    const slabSummaryError = ref('');
+
+    const slabSummaryReadiness = computed(() => {
+      const missing = [];
+      if (!materialsResult.value) missing.push('Материалы (Раздел 5)');
+      if (!loadsPermResult.value) missing.push('Постоянные нагрузки (Раздел 6.1-6.3)');
+      if (!loadsDynSlabResult.value) missing.push('Динамич. коэффициент (Раздел 6.4)');
+      if (!loadsShareResult.value) missing.push('Доли нагрузки (Раздел 6.6-6.7)');
+      if (!slabStrengthResult.value) missing.push('Прочность плиты (Раздел 7.2)');
+      if (!slabShearResult.value) missing.push('Поперечная сила плиты (Раздел 7.2.4)');
+
+      return { missing, ready: missing.length === 0 };
+    });
+
     const slabReadiness = computed(() => {
       const missing = [];
       if (!materialsResult.value) missing.push('Материалы');
@@ -464,6 +483,115 @@ const app = createApp({
       if (data) {
         slabFatigueResult.value = data;
         localStorage.setItem('slabFatigueResult', JSON.stringify(data));
+      }
+    }
+
+    // === Расчёт сводной таблицы грузоподъемности плиты ===
+    function getSlabSummaryRequestData() {
+      const data = {
+        // Данные паспорта
+        spanLength: bridgeData.spanLength,
+        ballastThickness: bridgeData.ballastThickness,
+        trackType: bridgeData.trackType,
+        sleeperType: bridgeData.sleeperType,
+        concreteStrengthR: bridgeData.concreteStrengthR,
+        distanceBetweenBeams: bridgeData.distanceBetweenBeams,
+        trackOffsetLeft: bridgeData.trackOffsetLeft,
+        trackOffsetRight: bridgeData.trackOffsetRight,
+        mBeams: bridgeData.mBeams,
+        rebarType: bridgeData.rebarType,
+        designYear: bridgeData.designYear,
+        loadType: bridgeData.loadType,
+
+        // Геометрия плиты
+        slabHeight: slabForm.slabHeight,
+        asTensile: slabForm.asTensile,
+        asCompressive: slabForm.asCompressive,
+        asTensileArea: slabForm.asTensileArea,
+        asCompressiveArea: slabForm.asCompressiveArea,
+        lp: slabForm.lp,
+        B: slabForm.B,
+        ls: slabForm.ls,
+        lbPrime: slabForm.lbPrime,
+        lbDoubleprime: slabForm.lbDoubleprime,
+        hbPrime: slabForm.hbPrime,
+        hbDoubleprime: slabForm.hbDoubleprime,
+        mpMonolithic: slabForm.mpMonolithic || 0,
+        mpExternalCantilever: slabForm.mpExternalCantilever || 0,
+        P0: slabForm.P0 || 0.65,
+        pt: slabForm.pt || 0.25,
+        lt: slabForm.lt || 2.7,
+        lk: slabForm.lk || 1.05,
+
+        // Материалы из Раздела 5
+        Rb: materialsResult.value ? materialsResult.value.Rb : 0,
+        Rbt: materialsResult.value ? materialsResult.value.Rbt : 0,
+        Eb: materialsResult.value ? materialsResult.value.Eb : 0,
+        Rs: materialsResult.value ? materialsResult.value.Rs : 0,
+        Es: materialsResult.value ? materialsResult.value.Es : 0,
+        nPrime: materialsResult.value ? materialsResult.value.nPrime : 0,
+
+        // Нагрузки из Раздела 6
+        gammaReinforcedConcrete: loadsPermResult.value ? loadsPermResult.value.gammaReinforcedConcrete : 0,
+        gammaBallastWithTrack: loadsPermResult.value ? loadsPermResult.value.gammaBallastWithTrack : 0,
+        ppSlab: loadsPermResult.value ? loadsPermResult.value.ppSlab : 0,
+        pbSlab: loadsPermResult.value ? loadsPermResult.value.pbSlab : 0,
+        ppBeam: loadsPermResult.value ? loadsPermResult.value.ppBeam : 0,
+        pbBeam: loadsPermResult.value ? loadsPermResult.value.pbBeam : 0,
+        np: loadsPermResult.value ? loadsPermResult.value.np : 0,
+        npPrime: loadsPermResult.value ? loadsPermResult.value.npPrime : 0,
+        nk: loadsPermResult.value ? loadsPermResult.value.nk : 0,
+
+        // Динамический коэффициент из Раздела 6.4
+        dynamicCoeffSlab: loadsDynSlabResult.value ? loadsDynSlabResult.value.dynamicCoeff : 1.5,
+        lambda: loadsDynSlabForm.useMaxCoefficient ? 0.0 : (loadsDynSlabForm.lambda || slabForm.lp),
+
+        // Доли нагрузки из Раздела 6.6-6.7
+        epsilonM: loadsShareResult.value ? loadsShareResult.value.epsilonM_Beam1 : 0,
+        epsilonQ: loadsShareResult.value ? loadsShareResult.value.epsilonQ_Beam1 : 0
+      };
+
+      return data;
+    }
+
+    async function calculateSlabSummary() {
+      if (!slabSummaryReadiness.value.ready) {
+        alert('⚠️ Сначала выполните расчеты:\n\n' + slabSummaryReadiness.value.missing.map(m => '• ' + m).join('\n'));
+        return;
+      }
+
+      slabSummaryResult.value = null;
+      showSlabSummaryReport.value = false;
+      slabSummaryError.value = '';
+      isLoading.value = true;
+
+      try {
+        const response = await fetch('/api/v1/summary/slab', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(getSlabSummaryRequestData())
+        });
+
+        if (!response.ok) {
+          throw new Error(`Ошибка сервера: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Теперь data - это объект { rows, minClass, detailedReport }
+        if (data && data.rows) {
+          slabSummaryResult.value = {
+            rows: data.rows,
+            minClass: data.minClass,
+            detailedReport: data.detailedReport || ''
+          };
+          localStorage.setItem('slabSummaryResult', JSON.stringify(slabSummaryResult.value));
+        }
+      } catch (e) {
+        slabSummaryError.value = 'Ошибка при расчёте сводной таблицы: ' + e.message;
+        console.error('Slab Summary Error:', e);
+      } finally {
+        isLoading.value = false;
       }
     }
 
@@ -1215,26 +1343,48 @@ const app = createApp({
       const lines = text.split('\n');
       let html = '';
       let inSection = false;
+      let sectionType = ''; // 'main' для римских, 'sub' для внутренних
 
       for (const line of lines) {
         const trimmed = line.trim();
         if (trimmed.startsWith('====')) continue;
 
         if (trimmed === '') {
-          if (inSection) { html += '</div>'; inSection = false; }
+          if (inSection) {
+            html += '</div>';
+            inSection = false;
+            sectionType = '';
+          }
           continue;
         }
 
-        if (trimmed.match(/^\[\d+\./)) {
+        // Проверяем римские цифры (I., II., III., IV., V. и т.д.)
+        const isRomanFormat = trimmed.match(/^(I|II|III|IV|V|VI|VII|VIII|IX|X)\.\s/);
+
+        // Проверяем внутренние разделы [1., [2. и т.д.
+        const isOldFormat = trimmed.match(/^\[\d+\./);
+
+        if (isRomanFormat || isOldFormat) {
           if (inSection) html += '</div>';
+
           const cleanTitle = trimmed.replace(/^\[|\]$/g, '');
-          html += `<div class="report-section"><h4 class="report-section-title">${escapeHtml(cleanTitle)}</h4>`;
+
+          // Определяем тип раздела
+          if (isRomanFormat) {
+            sectionType = 'main';
+            html += `<div class="report-section report-section-main"><h4 class="report-section-title">${escapeHtml(cleanTitle)}</h4>`;
+          } else {
+            sectionType = 'sub';
+            html += `<div class="report-section report-section-sub"><h4 class="report-section-title">${escapeHtml(cleanTitle)}</h4>`;
+          }
+
           inSection = true;
           continue;
         }
 
         html += `<p class="report-line">${escapeHtml(trimmed)}</p>`;
       }
+
       if (inSection) html += '</div>';
       return html;
     }
@@ -1307,6 +1457,7 @@ const app = createApp({
       slabStrengthResult, showSlabStrengthReport, calculateSlabStrength,
       slabShearResult, showSlabShearReport, calculateSlabShear,
       slabFatigueResult, showSlabFatigueReport, calculateSlabFatigue,
+      slabSummaryResult, slabSummaryError, showSlabSummaryReport, slabSummaryReadiness, calculateSlabSummary,
       // Раздел 7: Балка
       beamForm, beamReadiness, beamFatigueReadiness,
       beamMomentResult, showBeamMomentReport, calculateBeamMoment,

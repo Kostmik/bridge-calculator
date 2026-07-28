@@ -1,4 +1,4 @@
-package org.example.dto;
+package org.example.dto.materials;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
